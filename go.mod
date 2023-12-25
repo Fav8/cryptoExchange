@@ -1,3 +1,3 @@
-module github.com/fav8/crypto-exchange
+module github.com/fav8/cryptoexchange
 
 go 1.21.5
