@@ -17,7 +17,8 @@ func TestLimit(t *testing.T) {
 	l.AddOrder(buyOrderB)
 	l.AddOrder(buyOrderC)
 
-	l.deleteOrder(buyOrderB)
+	l.DeleteOrder(buyOrderB)
+	buyOrderA.EditOrder(10)
 
 	fmt.Println(l)
 

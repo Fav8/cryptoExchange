@@ -20,6 +20,12 @@ func newOrder(bid bool, size float64) *Order {
 	}
 }
 
+func (o *Order) EditOrder(size float64) {
+	sizeDiff := size - o.Size
+	o.Size = size
+	o.Limit.TotalVolume += sizeDiff
+}
+
 func (o *Order) String() string {
 	return fmt.Sprintf("[Size: %.2f]", o.Size)
 }
@@ -43,7 +49,7 @@ func (l *Limit) AddOrder(o *Order) {
 	l.TotalVolume += o.Size
 }
 
-func (l *Limit) deleteOrder(o *Order) {
+func (l *Limit) DeleteOrder(o *Order) {
 	for i, order := range l.Orders {
 		if order == o {
 			l.Orders = append(l.Orders[:i], l.Orders[i+1:]...)
