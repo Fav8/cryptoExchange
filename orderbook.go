@@ -80,6 +80,7 @@ func (l *Limit) Fill(o *Order) []Match {
 	for _, order := range l.Orders {
 		match := l.fillOrder(order, o)
 		matches = append(matches, match)
+		l.TotalVolume -= match.SizeFilled
 		if o.isFilled() {
 			break
 		}
@@ -166,14 +167,13 @@ func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
 		}
 	} else {
 		if o.Size > ob.BidTotalVolume() {
-			panic("not enough volume")
+			panic(fmt.Errorf("not enough volume  [order size: %.2f, ask volume: %.2f]", o.Size, ob.AskTotalVolume()))
 		}
 		for _, limit := range ob.Bids() {
 			limitMatches := limit.Fill(o)
 			matches = append(matches, limitMatches...)
 		}
 	}
-
 	return matches
 }
 
