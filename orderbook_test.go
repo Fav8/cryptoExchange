@@ -2,20 +2,36 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
-func TestOrderbook(t *testing.T) {
-	ob := NewOrderbook()
+func assert(t *testing.T, a, b any) {
+	if !reflect.DeepEqual(a, b) {
+		t.Errorf("%v != %v", a, b)
+	}
+}
 
-	buyOrderA := newOrder(true, 10)
+func TestPlaceLimitOrder(t *testing.T) {
+	ob := NewOrderbook()
+	sellOrderA := newOrder(false, 5)
+	ob.PlaceLimitOrder(10_000, sellOrderA)
+	assert(t, len(ob.asks), 1)
+	sellOrderB := newOrder(false, 7)
+	ob.PlaceLimitOrder(9_000, sellOrderB)
+	assert(t, len(ob.asks), 2)
+
+}
+
+func TestPlaceMarketOrder(t *testing.T) {
+	ob := NewOrderbook()
+	sellOrderA := newOrder(false, 5)
+	ob.PlaceLimitOrder(20_000, sellOrderA)
+	buyOrderA := newOrder(true, 2)
 	buyOrderB := newOrder(true, 10)
-	ob.PlaceOrder(18_000, buyOrderA)
-	ob.PlaceOrder(18_000, buyOrderB)
-	ob.PlaceOrder(18_000, buyOrderB)
-	ob.PlaceOrder(18_000, buyOrderB)
-	ob.PlaceOrder(18_000, buyOrderB)
-	fmt.Println(ob.Bids[0].Orders)
+	matches := ob.PlaceMarketOrder(buyOrderA)
+	ob.PlaceMarketOrder(buyOrderB)
+	fmt.Printf("%+v", matches)
 }
 
 func TestLimit(t *testing.T) {
