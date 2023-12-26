@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -19,6 +20,12 @@ type Order struct {
 	Timestamp int64
 }
 
+type Orders []*Order
+
+func (o Orders) Len() int           { return len(o) }
+func (o Orders) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
+func (o Orders) Less(i, j int) bool { return o[i].Timestamp < o[j].Timestamp }
+
 func newOrder(bid bool, size float64) *Order {
 	return &Order{
 		Bid:       bid,
@@ -34,14 +41,28 @@ func (o *Order) EditOrder(size float64) {
 }
 
 func (o *Order) String() string {
-	return fmt.Sprintf("[Size: %.2f]", o.Size)
+	return fmt.Sprintf("[Size: %.2f, Time: %v]", o.Size, o.Timestamp)
 }
 
 type Limit struct {
 	Price       float64
-	Orders      []*Order
+	Orders      Orders
 	TotalVolume float64
 }
+
+type Limits []*Limit
+
+type ByBestAsk struct{ Limits }
+
+func (a ByBestAsk) Len() int           { return len(a.Limits) }
+func (a ByBestAsk) Swap(i, j int)      { a.Limits[i], a.Limits[j] = a.Limits[j], a.Limits[i] }
+func (a ByBestAsk) Less(i, j int) bool { return a.Limits[i].Price < a.Limits[j].Price }
+
+type ByBestBid struct{ Limits }
+
+func (a ByBestBid) Len() int           { return len(a.Limits) }
+func (a ByBestBid) Swap(i, j int)      { a.Limits[i], a.Limits[j] = a.Limits[j], a.Limits[i] }
+func (a ByBestBid) Less(i, j int) bool { return a.Limits[i].Price > a.Limits[j].Price }
 
 func NewLimit(price float64) *Limit {
 	return &Limit{
@@ -66,6 +87,8 @@ func (l *Limit) DeleteOrder(o *Order) {
 	}
 	o.Limit = nil
 	l.TotalVolume -= o.Size
+
+	sort.Sort(l.Orders)
 }
 
 type Orderbook struct {
@@ -102,14 +125,10 @@ func (ob *Orderbook) PlaceOrder(price float64, o *Order) []Match {
 		}
 	} else {
 		if limit, ok := ob.BidLimits[price]; ok {
-			fmt.Println("limit found")
 			for orderIndex := 0; orderIndex < len(limit.Orders) && o.Size > 0; orderIndex++ {
-				fmt.Println("order found")
 				if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize > 0 {
 					limit.Orders[orderIndex].Size = remainerSize
-					fmt.Println(limit.TotalVolume)
 					limit.TotalVolume = limit.TotalVolume - o.Size
-					fmt.Println(limit.TotalVolume)
 					o.Size = 0
 				} else if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize < 0 {
 					limit.DeleteOrder(limit.Orders[orderIndex])

@@ -10,11 +10,12 @@ func TestOrderbook(t *testing.T) {
 
 	buyOrderA := newOrder(true, 10)
 	buyOrderB := newOrder(true, 10)
-	sellOrderA := newOrder(false, 5)
 	ob.PlaceOrder(18_000, buyOrderA)
 	ob.PlaceOrder(18_000, buyOrderB)
-	ob.PlaceOrder(18_000, sellOrderA)
-	fmt.Println(ob.Bids)
+	ob.PlaceOrder(18_000, buyOrderB)
+	ob.PlaceOrder(18_000, buyOrderB)
+	ob.PlaceOrder(18_000, buyOrderB)
+	fmt.Println(ob.Bids[0].Orders)
 }
 
 func TestLimit(t *testing.T) {
