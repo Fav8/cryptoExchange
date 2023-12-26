@@ -68,10 +68,6 @@ func (l *Limit) DeleteOrder(o *Order) {
 	l.TotalVolume -= o.Size
 }
 
-func (l *Limit) String() string {
-	return fmt.Sprintf("[Price: %.2f, TotalVolume: %.2f]", l.Price, l.TotalVolume)
-}
-
 type Orderbook struct {
 	Asks []*Limit
 	Bids []*Limit
@@ -90,8 +86,39 @@ func NewOrderbook() *Orderbook {
 }
 
 func (ob *Orderbook) PlaceOrder(price float64, o *Order) []Match {
-	//try to match the order
-	//add the rest of the order to the books
+	if o.Bid {
+		if limit, ok := ob.AskLimits[price]; ok {
+			for orderIndex := 0; orderIndex < len(limit.Orders); orderIndex++ {
+				if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize > 0 {
+					limit.Orders[orderIndex].Size = remainerSize
+					limit.TotalVolume -= o.Size
+					o.Size = 0
+				} else if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize < 0 {
+					limit.DeleteOrder(limit.Orders[orderIndex])
+					//check if i need to move on to other orders or add a pending order
+				}
+			}
+
+		}
+	} else {
+		if limit, ok := ob.BidLimits[price]; ok {
+			fmt.Println("limit found")
+			for orderIndex := 0; orderIndex < len(limit.Orders) && o.Size > 0; orderIndex++ {
+				fmt.Println("order found")
+				if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize > 0 {
+					limit.Orders[orderIndex].Size = remainerSize
+					fmt.Println(limit.TotalVolume)
+					limit.TotalVolume = limit.TotalVolume - o.Size
+					fmt.Println(limit.TotalVolume)
+					o.Size = 0
+				} else if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize < 0 {
+					limit.DeleteOrder(limit.Orders[orderIndex])
+					//check if i need to move on to other orders or add a pending order
+				}
+			}
+
+		}
+	}
 	if o.Size > 0.0 {
 		ob.add(price, o)
 	}
@@ -102,7 +129,6 @@ func (ob *Orderbook) add(price float64, o *Order) {
 	if o.Bid {
 		if limit, ok := ob.BidLimits[price]; ok {
 			limit.AddOrder(o)
-			limit.TotalVolume += o.Size
 		} else {
 			limit := NewLimit(price)
 			limit.AddOrder(o)
@@ -112,7 +138,6 @@ func (ob *Orderbook) add(price float64, o *Order) {
 	} else {
 		if limit, ok := ob.AskLimits[price]; ok {
 			limit.AddOrder(o)
-			limit.TotalVolume += o.Size
 		} else {
 			limit := NewLimit(price)
 			limit.AddOrder(o)
