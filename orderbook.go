@@ -68,6 +68,10 @@ func (l *Limit) DeleteOrder(o *Order) {
 	l.TotalVolume -= o.Size
 }
 
+func (l *Limit) String() string {
+	return fmt.Sprintf("[Price: %.2f, TotalVolume: %.2f]", l.Price, l.TotalVolume)
+}
+
 type Orderbook struct {
 	Asks []*Limit
 	Bids []*Limit

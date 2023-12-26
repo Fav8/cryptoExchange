@@ -7,7 +7,10 @@ import (
 
 func TestOrderbook(t *testing.T) {
 	ob := NewOrderbook()
-	fmt.Println(ob)
+
+	buyOrderA := newOrder(true, 10)
+	ob.PlaceOrder(18_000, buyOrderA)
+	fmt.Println(ob.Bids)
 }
 
 func TestLimit(t *testing.T) {
