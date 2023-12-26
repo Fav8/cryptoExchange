@@ -6,6 +6,8 @@ import (
 )
 
 func TestOrderbook(t *testing.T) {
+	ob := NewOrderbook()
+	fmt.Println(ob)
 }
 
 func TestLimit(t *testing.T) {
