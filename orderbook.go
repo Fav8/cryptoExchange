@@ -41,7 +41,7 @@ func (o *Order) EditOrder(size float64) {
 }
 
 func (o *Order) isFilled() bool {
-	return o.Size == 0
+	return o.Size == 0.0
 }
 
 func (o *Order) String() string {
@@ -76,14 +76,25 @@ func NewLimit(price float64) *Limit {
 }
 
 func (l *Limit) Fill(o *Order) []Match {
-	matches := []Match{}
+	var (
+		matches        []Match
+		ordersToDelete []*Order
+	)
 	for _, order := range l.Orders {
 		match := l.fillOrder(order, o)
 		matches = append(matches, match)
 		l.TotalVolume -= match.SizeFilled
+		if order.isFilled() {
+			ordersToDelete = append(ordersToDelete, order)
+		}
+
 		if o.isFilled() {
+			ordersToDelete = append(ordersToDelete, order)
 			break
 		}
+	}
+	for _, order := range ordersToDelete {
+		l.DeleteOrder(order)
 	}
 	return matches
 }
@@ -102,17 +113,17 @@ func (l *Limit) fillOrder(a, b *Order) Match {
 		ask = a
 	}
 	if a.Size >= b.Size {
-		sizeFilled = b.Size
 		a.Size -= b.Size
-		b.Size = 0
+		sizeFilled = b.Size
+		b.Size = 0.0
 	} else {
-		sizeFilled = a.Size
 		b.Size -= a.Size
-		a.Size = 0
+		sizeFilled = a.Size
+		a.Size = 0.0
 	}
 	return Match{
-		Ask:        ask,
 		Bid:        bid,
+		Ask:        ask,
 		SizeFilled: sizeFilled,
 		Price:      l.Price,
 	}
@@ -125,11 +136,10 @@ func (l *Limit) AddOrder(o *Order) {
 }
 
 func (l *Limit) DeleteOrder(o *Order) {
-	for i, order := range l.Orders {
-		if order == o {
-			l.Orders = append(l.Orders[:i], l.Orders[i+1:]...)
-			l.TotalVolume -= o.Size
-			return
+	for i := 0; i < len(l.Orders); i++ {
+		if l.Orders[i] == o {
+			l.Orders[i] = l.Orders[len(l.Orders)-1]
+			l.Orders = l.Orders[:len(l.Orders)-1]
 		}
 	}
 	o.Limit = nil
@@ -164,6 +174,9 @@ func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
 		for _, limit := range ob.Asks() {
 			limitMatches := limit.Fill(o)
 			matches = append(matches, limitMatches...)
+			if len(limit.Orders) == 0 {
+				ob.ClearLimit(true, limit)
+			}
 		}
 	} else {
 		if o.Size > ob.BidTotalVolume() {
@@ -172,45 +185,34 @@ func (ob *Orderbook) PlaceMarketOrder(o *Order) []Match {
 		for _, limit := range ob.Bids() {
 			limitMatches := limit.Fill(o)
 			matches = append(matches, limitMatches...)
+			if len(limit.Orders) == 0 {
+				ob.ClearLimit(true, limit)
+			}
+
 		}
 	}
 	return matches
 }
 
-func (ob *Orderbook) PlaceLimitOrder(price float64, o *Order) []Match {
+func (ob *Orderbook) PlaceLimitOrder(price float64, o *Order) {
+	var limit *Limit
 	if o.Bid {
-		if limit, ok := ob.AskLimits[price]; ok {
-			for orderIndex := 0; orderIndex < len(limit.Orders); orderIndex++ {
-				if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize > 0 {
-					limit.Orders[orderIndex].Size = remainerSize
-					limit.TotalVolume -= o.Size
-					o.Size = 0
-				} else if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize < 0 {
-					limit.DeleteOrder(limit.Orders[orderIndex])
-					//check if i need to move on to other orders or add a pending order
-				}
-			}
-
-		}
+		limit = ob.BidLimits[price]
 	} else {
-		if limit, ok := ob.BidLimits[price]; ok {
-			for orderIndex := 0; orderIndex < len(limit.Orders) && o.Size > 0; orderIndex++ {
-				if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize > 0 {
-					limit.Orders[orderIndex].Size = remainerSize
-					limit.TotalVolume = limit.TotalVolume - o.Size
-					o.Size = 0
-				} else if remainerSize := limit.Orders[orderIndex].Size - o.Size; remainerSize < 0 {
-					limit.DeleteOrder(limit.Orders[orderIndex])
-					//check if i need to move on to other orders or add a pending order
-				}
-			}
+		limit = ob.AskLimits[price]
+	}
+	if limit == nil {
+		limit = NewLimit(price)
 
+		if o.Bid {
+			ob.bids = append(ob.bids, limit)
+			ob.BidLimits[price] = limit
+		} else {
+			ob.asks = append(ob.asks, limit)
+			ob.AskLimits[price] = limit
 		}
 	}
-	if o.Size > 0.0 {
-		ob.add(price, o)
-	}
-	return []Match{}
+	limit.AddOrder(o)
 }
 
 func (ob *Orderbook) add(price float64, o *Order) {
@@ -235,18 +237,43 @@ func (ob *Orderbook) add(price float64, o *Order) {
 	}
 }
 
+func (ob *Orderbook) ClearLimit(bid bool, l *Limit) {
+	if bid {
+		delete(ob.BidLimits, l.Price)
+		for i := 0; i < len(ob.bids); i++ {
+			if ob.bids[i] == l {
+				ob.bids[i] = ob.bids[len(ob.bids)-1]
+				ob.bids = ob.bids[:len(ob.bids)-1]
+			}
+		}
+	} else {
+		delete(ob.AskLimits, l.Price)
+		for i := 0; i < len(ob.asks); i++ {
+			if ob.asks[i] == l {
+				ob.asks[i] = ob.asks[len(ob.asks)-1]
+				ob.asks = ob.asks[:len(ob.asks)-1]
+			}
+		}
+	}
+}
+
+func (ob *Orderbook) CancelOrder(o *Order) {
+	limit := o.Limit
+	limit.DeleteOrder(o)
+}
+
 func (ob *Orderbook) BidTotalVolume() float64 {
-	var total float64
-	for _, limit := range ob.bids {
-		total += limit.TotalVolume
+	total := 0.0
+	for i := 0; i < len(ob.bids); i++ {
+		total += ob.bids[i].TotalVolume
 	}
 	return total
 }
 
 func (ob *Orderbook) AskTotalVolume() float64 {
-	var total float64
-	for _, limit := range ob.asks {
-		total += limit.TotalVolume
+	total := 0.0
+	for i := 0; i < len(ob.asks); i++ {
+		total += ob.asks[i].TotalVolume
 	}
 	return total
 }
